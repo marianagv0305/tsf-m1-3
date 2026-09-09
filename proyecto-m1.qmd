@@ -1,0 +1,90 @@
+---
+title: "Modelo baseline de pronóstico"
+subtitle: "Ventas de productos eléctricos y electrónicos en Northern Territory"
+author: "Equipo Proyecto M1 3"
+---
+
+## Objetivo
+
+Construir y evaluar un modelo baseline para pronosticar las ventas minoristas
+mensuales de productos eléctricos y electrónicos en Northern Territory,
+Australia.
+
+## Serie asignada
+
+- **Equipo:** Proyecto M1 3
+- **Estado:** Northern Territory
+- **Industria:** Electrical and electronic goods retailing
+- **Series ID:** `A3349598V`
+- **Frecuencia:** mensual
+
+## Preparación del entorno
+
+```{r}
+#| label: setup
+#| include: false
+
+library(fpp3)
+```
+
+## Obtención de la serie
+
+```{r}
+#| label: cargar-serie
+
+mi_serie <- aus_retail |>
+  filter(`Series ID` == "A3349598V")
+
+mi_serie
+```
+
+## Verificación de la serie
+
+```{r}
+#| label: verificar-serie
+
+mi_serie |>
+  distinct(State, Industry, `Series ID`)
+```
+
+```{r}
+#| label: resumen-serie
+
+mi_serie |>
+  summarise(
+    fecha_inicial = min(Month),
+    fecha_final = max(Month),
+    observaciones = n()
+  )
+```
+
+## Análisis exploratorio
+
+
+
+## Estabilización de la varianza
+
+
+
+## Descomposición STL
+
+
+
+## División de entrenamiento y prueba
+
+
+
+## Modelo baseline
+
+
+
+## Evaluación
+
+
+
+## Pronóstico final
+
+
+
+## Conclusiones
+
