@@ -1,14 +1,14 @@
-# [Nombre del equipo] — Proyecto Módulo [N]
+# Proyecto M1 3 — Proyecto Módulo 1
 
-Repo de equipo para el proyecto del Módulo [N] del curso de Forecasting de
+Repo de equipo para el proyecto del Módulo 1 del curso de Forecasting de
 Series de Tiempo (ITESO).
 
 ## Integrantes
 
-- Nombre 1
-- Nombre 2
-- Nombre 3
-- Nombre 4
+- Demien Becerra Lozano
+- Diego Eduardo Martinez Sincel
+- Evelyn Garcia Jaimes
+- Mariana García Vera
 
 ## Qué incluye este repo
 
