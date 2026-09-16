@@ -21,36 +21,27 @@ Australia.
 ## Preparación del entorno
 
 ```{r}
-#| label: setup
-#| include: false
-
 library(fpp3)
 ```
 
 ## Obtención de la serie
 
 ```{r}
-#| label: cargar-serie
-
-mi_serie <- aus_retail |>
+electrical_serie <- aus_retail |>
   filter(`Series ID` == "A3349598V")
 
-mi_serie
+electrical_serie
 ```
 
 ## Verificación de la serie
 
 ```{r}
-#| label: verificar-serie
-
-mi_serie |>
+electrical_serie |>
   distinct(State, Industry, `Series ID`)
 ```
 
 ```{r}
-#| label: resumen-serie
-
-mi_serie |>
+electrical_serie |>
   summarise(
     fecha_inicial = min(Month),
     fecha_final = max(Month),
@@ -58,9 +49,122 @@ mi_serie |>
   )
 ```
 
+
 ## Análisis exploratorio
 
+Antes de construir el modelo de pronóstico, se analiza el comportamiento
+histórico de la serie para identificar tendencia, estacionalidad, cambios
+en la variabilidad y otras observaciones que surjan.
 
+### Promedio, Mediana, Min y Max Ventas de la Serie
+
+```{r}
+electrical_serie |>
+  as_tibble() |>
+  summarise(
+    venta_minima = min(Turnover, na.rm = TRUE),
+    venta_promedio = mean(Turnover, na.rm = TRUE),
+    mediana = median(Turnover, na.rm = TRUE),
+    venta_maxima = max(Turnover, na.rm = TRUE)
+  )
+```
+
+La serie registra ventas mensuales entre 1.5 y 26.5 millones de dólares
+australianos. El promedio mensual es de 9.34 millones y la mediana es de
+8.8 millones. Que el promedio sea ligeramente superior a la
+mediana indica que puede haber valores elevados.
+
+### Evolución histórica
+
+```{r}
+electrical_serie |>
+  autoplot(Turnover) +
+  labs(
+    title = "Evolución mensual de las ventas",
+    x = "Mes",
+    y = "Ventas (millones dólares australianos)"
+  ) +
+  theme_minimal()
+```
+
+La serie presenta una tendencia creciente desde aproximadamente 1988 hasta 
+2012–2013. A partir de ese periodo se observa una disminución en el nivel de
+las ventas y posteriormente un comportamiento cambiante. También se
+identifican picos pronunciados que se repiten regularmente, lo cual sugiere
+la presencia de estacionalidad anual.
+
+### Patrón estacional
+
+```{r}
+electrical_serie |>
+  gg_season(Turnover, labels = "both") +
+  labs(
+    title = "Gráfica estacional de las ventas",
+    x = "Mes",
+    y = "Ventas (millones dólares australianos)"
+  ) +
+  theme_minimal()
+```
+
+Esta gráfica muestra un patrón anual marcado. Diciembre presenta
+consistentemente las ventas más altas y, al contrario, febrero y
+abril suelen registrar niveles menores. Aunque la magnitud de
+las ventas cambia entre años, la forma general del patrón mensual se repite,
+lo que confirma la existencia de estacionalidad anual.
+
+### Comparación por mes
+
+```{r}
+electrical_serie |>
+  gg_subseries(Turnover) +
+  scale_x_yearmonth(
+    date_breaks = "10 years",
+    date_labels = "%Y"
+  ) +
+  labs(
+    title = "Subseries estacionales",
+    x = "Año",
+    y = "Ventas (millones de dólares australianos)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      size = 7
+    )
+  )
+```
+
+Las subseries estacionales confirman que diciembre posee el promedio histórico más alto de ventas y una variabilidad considerablemente mayor que los demás meses. Febrero y abril presentan los promedios mensuales más bajos, mientras que los demás promedios tienden a incrementarse hacia los últimos meses del año. 
+
+### Autocorrelación
+
+```{r}
+electrical_serie |>
+  ACF(Turnover) |>
+  autoplot() +
+  labs(
+    title = "Función de autocorrelación",
+    x = "Rezago",
+    y = "Autocorrelación"
+  ) +
+  theme_minimal()
+```
+
+Esta función nos muestra valores positivos y elevados que
+disminuyen lentamente conforme aumenta el rezago. Esto indica una fuerte
+dependencia temporal y confirma que la serie no fluctúa aleatoriamente
+alrededor de un nivel constante. Los incrementos observados en los rezagos
+12 y 24 evidencian que las ventas de un mes están relacionadas con las del
+mismo mes en años anteriores, confirmando una periodicidad anual.
+
+### Conclusiones EDA
+
+- La serie presenta crecimiento hasta aproximadamente 2012–2013 y después una disminución.
+- Existe una estacionalidad anual fuerte, con las mayores ventas en diciembre.
+- La variabilidad aumenta junto con el nivel de ventas.
+- La función de autocorrelación muestra dependencia temporal y estacionalidad en los rezagos 12 y 24.
 
 ## Estabilización de la varianza
 
