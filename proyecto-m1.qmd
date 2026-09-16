@@ -168,11 +168,101 @@ mismo mes en años anteriores, confirmando una periodicidad anual.
 
 ## Estabilización de la varianza
 
+En la serie original se observa que las fluctuaciones tienen mayor amplitud durante los años con ventas más altas. Esto nos dice que una transformación podría ayudar a estabilizar
+la variabilidad.
 
+Para elegir el parámetro de Box-Cox se utiliza el método de Guerrero. Se
+excluyen los últimos 24 meses del cálculo, ya que se reservarán para evaluar
+el pronóstico.
+
+```{r}
+lambda <- electrical_serie |>
+  slice_head(n = nrow(electrical_serie) - 24) |>
+  features(Turnover, guerrero) |>
+  pull(lambda_guerrero)
+
+lambda
+```
+
+Después observamos el BoxCox
+
+```{r}
+electrical_serie |>
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(
+    title = "Ventas transformadas con Box-Cox",
+    x = "Mes",
+    y = "Ventas transformadas"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+electrical_serie |>
+  mutate(Transformada = box_cox(Turnover, lambda)) |>
+  as_tibble() |>
+  pivot_longer(
+    cols = c(Turnover, Transformada),
+    names_to = "Escala",
+    values_to = "Valor"
+  ) |>
+  mutate(
+    Escala = recode(
+      Escala,
+      Turnover = "Ventas originales",
+      Transformada = "Ventas transformadas (Box-Cox)"
+    )
+  ) |>
+  ggplot(aes(x = Month, y = Valor)) +
+  geom_line(color = "#2767A7") +
+  facet_wrap(~ Escala, ncol = 1, scales = "free_y") +
+  labs(
+    title = "Comparación antes y después de la transformación",
+    x = "Mes",
+    y = NULL
+  ) +
+  theme_minimal()
+```
+
+El método de Guerrero estimó λ = 0.118152. En la serie original, la amplitud
+de las fluctuaciones aumenta cuando el nivel de ventas es mayor. Después de
+aplicar la transformación Box-Cox, los picos de los años con ventas más altas
+se reducen y la variabilidad se observa más uniforme a lo largo del tiempo.
 
 ## Descomposición STL
 
+Aplicamos STL a las ventas transformadas con Box-Cox para
+separar la serie en tres componentes: tendencia, estacionalidad y residuo.
 
+```{r}
+stl_entrenamiento <- electrical_serie |>
+  slice_head(n = nrow(electrical_serie) - 24) |>
+  model(
+    STL(box_cox(Turnover, lambda) ~ season(window = "periodic"))
+  )
+
+componentes_stl <- components(stl_entrenamiento)
+```
+
+```{r}
+componentes_stl |>
+  autoplot()
+```
+
+### Interpretación de la descomposición 
+
+- **Tendencia:** la segunda gráfica muestra un crecimiento desde
+  1988 hasta aproximadamente 2012–2013. Después alcanza un máximo y
+  presenta una disminución gradual hacia el final del periodo.  Esta curva representa los cambios de largo plazo sin las subidas y bajadas habituales de cada mes.
+
+- **Estacionalidad:** la tercera gráfica repite un patrón cada 12 meses. El
+  pico más alto corresponde a diciembre, lo que coincide con las
+  gráficas estacionales del análisis exploratorio. Su forma y amplitud
+  permanecen constantes porque especificamos.
+
+- **Residuo:** la última gráfica nos da las variaciones que no explican
+  la tendencia ni el patrón estacional. La mayoría está alrededor de
+  cero, aunque hay algunos cambios más pronunciados. Por tanto, la descomposición sí describe los patrones principales, pero no explica por completo cada observación.
 
 ## División de entrenamiento y prueba
 
