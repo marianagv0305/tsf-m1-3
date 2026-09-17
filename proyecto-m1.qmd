@@ -266,10 +266,28 @@ componentes_stl |>
 
 ## División de entrenamiento y prueba
 
+```{r}
+entrenamiento <- electrical_serie |>
+  slice_head(n = nrow(electrical_serie) - 24)
+
+prueba <- electrical_serie |>
+  slice_tail(n = 24)
+```
 
 
 ## Modelo baseline
 
+```{r}
+modelo_baseline <- entrenamiento |>
+  model(
+    baseline = decomposition_model(
+      STL(box_cox(Turnover, lambda) ~ season(window = "periodic")),
+      RW(season_adjust ~ drift())
+    )
+  )
+
+modelo_baseline
+```
 
 
 ## Evaluación
