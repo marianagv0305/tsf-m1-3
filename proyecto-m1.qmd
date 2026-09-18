@@ -2,6 +2,9 @@
 title: "Modelo baseline de pronóstico"
 subtitle: "Ventas de productos eléctricos y electrónicos en Northern Territory"
 author: "Equipo Proyecto M1 3"
+format:
+  html:
+    embed-resources: true
 ---
 
 ## Objetivo
@@ -325,10 +328,19 @@ pronosticos_prueba |>
   theme_minimal()
 ```
 
+En la gráfica, `snaive` reproduce mejor las subidas stacionales de las ventas observadas. En cambio, `drift` tiende a pronosticar valores cada vez más altos y sus intervalos de predicción se amplíanconsiderablemente conforme avanza el horizonte.
+
 ```{r}
-accuracy(pronosticos_prueba, prueba) |>
-  select(.model, RMSE, MAE)
+metricas_prueba <- accuracy(
+  pronosticos_prueba,
+  electrical_serie
+)
+
+metricas_prueba |>
+  select(.model, RMSE, MAE, MASE)
 ```
+
+Para evaluar los 24 meses de prueba utilizamos MASE como métrica principal, porque compara el error con una referencia estacional calculada a partir del entrenamiento. También reportamos MAE porque expresa cuánto se alejan, en promedio, las ventas pronosticadas de las observadas en la misma unidad de la serie. Añadimos RMSE porque da mayor peso a los errores grandes, algo útil para detectar fallas en una serie con picos pronunciados como los de diciembre. Las tres métricas favorecen a snaive: obtuvo un MASE de 1.28, un MAE de 1.42 y un RMSE de 1.67, frente a 2.86, 3.18 y 3.57 para drift. Por ello lo elegimos como el mejor baseline entre los dos evaluados, aunque su MASE mayor que 1 muestra que todavía hay margen para mejorar la precisión.
 
 ```{r}
 modelo_baseline |>
@@ -342,10 +354,78 @@ modelo_baseline |>
   gg_tsresiduals()
 ```
 
+**Residuales de `snaive`.** Aunque este modelo obtuvo los menores errores
+en prueba, sus residuales muestran periodos consecutivos por encima o
+por debajo de cero. Además, varias barras de la función de
+autocorrelación superan las bandas de referencia, sobre todo en los
+primeros rezagos y cerca del rezago 12. Esto sugiere que el modelo aún
+deja patrones temporales sin explicar y que sus residuales no se
+comportan completamente como ruido blanco.
+
+**Residuales de `drift`.** Los residuales se concentran más alrededor de
+cero y muestran menos autocorrelaciones destacadas que los de `snaive`,
+aunque algunas barras todavía superan las bandas de referencia.
+Por ello, tampoco podemos afirmar que toda la dependencia temporal
+haya desaparecido. A pesar de este diagnóstico visual, `drift` obtuvo
+errores mayores en los 24 meses de prueba, por lo que no fue el mejor
+modelo para pronosticar este periodo.
+
+### Conclusiones Evaluación
+
+La evaluación sobre los 24 meses de prueba mostró que snaive pronosticó con mayor precisión que drift: obtuvo un MAE de 1.42 y un RMSE de 1.67, frente a 3.18 y 3.57, respectivamente. La gráfica también muestra que snaive siguió mejor las variaciones estacionales observadas, mientras que drift tendió a pronosticar ventas demasiado altas conforme avanzó el horizonte. Por ello, elegimos snaive como el mejor baseline de los dos evaluados. Sin embargo, la autocorrelación presente en sus residuales indica que todavía quedan patrones sin explicar, por lo que su ajuste puede mejorarse en trabajos posteriores.
 
 ## Pronóstico final
 
+Durante la evaluación, `snaive` obtuvo los menores errores en los 24 meses
+reservados para prueba. Para producir el pronóstico final, se ajusta de nuevo
+el mismo tipo de modelo usando todas las observaciones disponibles.
 
+```{r}
+lambda_final <- electrical_serie |>
+  features(Turnover, guerrero) |>
+  pull(lambda_guerrero)
+
+modelo_final <- electrical_serie |>
+  model(
+    snaive = decomposition_model(
+      STL(box_cox(Turnover, lambda_final) ~ season(window = "periodic")),
+      SNAIVE(season_adjust)
+    )
+  )
+
+lambda_final
+modelo_final
+```
+
+```{r}
+pronostico_final <- modelo_final |>
+  forecast(h = "24 months")
+
+pronostico_final |>
+  as_tibble() |>
+  select(Month, .mean)
+```
+
+```{r}
+pronostico_final |>
+  autoplot(
+    electrical_serie |>
+      filter(Month >= yearmonth("2014 Jan"))
+  ) +
+  labs(
+    title = "Pronóstico final de ventas",
+    x = "Mes",
+    y = "Ventas (millones de dólares australianos)"
+  ) +
+  theme_minimal()
+```
+
+El pronóstico de enero de 2019 a diciembre de 2020 indica que las ventas continuarían siguiendo un patrón estacional, con aumentos especialmente marcados en diciembre. Para los primeros meses de 2019, el modelo estima ventas de 13.0 millones de dólares australianos en enero, 11.2 en febrero y 12.7 en marzo. Estas cifras representan una referencia basada en el comportamiento histórico, no ventas observadas. Los intervalos de predicción se amplían conforme avanza el horizonte, por lo que los resultados de los meses más lejanos deben interpretarse con mayor cuidado.
 
 ## Conclusiones
+
+Las ventas mensuales de productos eléctricos y electrónicos en Northern Territory presentan una estacionalidad anual marcada, con aumentos pronunciados en diciembre, y una tendencia que creció hasta aproximadamente 2012–2013 antes de disminuir. La transformación Box-Cox redujo las diferencias de variabilidad entre periodos, y la descomposición STL permitió identificar por separado la tendencia, la estacionalidad y las fluctuaciones restantes. Al evaluar los pronósticos frente a los últimos 24 meses observados, el modelo STL + `SNAIVE()` obtuvo menores errores que STL + `RW` con drift: su MAE fue de 1.42 millones de dólares australianos y su RMSE de 1.67, frente a 3.18 y 3.57, respectivamente. Por ello, se seleccionó `SNAIVE()` como modelo baseline y se reentrenó con la serie completa para pronosticar los siguientes 24 meses, de enero de 2019 a diciembre de 2020.
+
+El pronóstico final conserva los incrementos estacionales de diciembre, pero debe interpretarse como una referencia inicial. Los residuales de `SNAIVE()` todavía presentan autocorrelación, lo que indica que el modelo deja patrones temporales sin explicar. Además, los intervalos de predicción se amplían en los meses más lejanos y el método supone que el patrón estacional observado continuará. En una siguiente etapa se podría comparar este baseline con modelos que representen mejor la dependencia entre meses y los cambios de tendencia, como ETS o ARIMA estacional, y evaluar sus pronósticos con el mismo periodo de prueba y las mismas métricas.
+
 
