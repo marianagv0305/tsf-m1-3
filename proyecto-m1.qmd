@@ -280,7 +280,11 @@ prueba <- electrical_serie |>
 ```{r}
 modelo_baseline <- entrenamiento |>
   model(
-    baseline = decomposition_model(
+    snaive = decomposition_model(
+      STL(box_cox(Turnover, lambda) ~ season(window = "periodic")),
+      SNAIVE(season_adjust)
+    ),
+    drift = decomposition_model(
       STL(box_cox(Turnover, lambda) ~ season(window = "periodic")),
       RW(season_adjust ~ drift())
     )
@@ -289,9 +293,54 @@ modelo_baseline <- entrenamiento |>
 modelo_baseline
 ```
 
+Se ajustaron dos modelos baseline utilizando únicamente el conjunto de
+entrenamiento. Ambos emplean STL para separar la estacionalidad y modelan
+la serie ajustada estacionalmente. SNAIVE() utiliza el valor de la misma
+temporada del año anterior, mientras que RW(drift = TRUE) incorpora una
+tendencia promedio.
 
 ## Evaluación
 
+Generamos pronósticos para los 24 meses reservados y los comparamos con
+las ventas observadas.
+
+```{r}
+pronosticos_prueba <- modelo_baseline |>
+  forecast(h = "24 months")
+
+pronosticos_prueba
+```
+
+```{r}
+pronosticos_prueba |>
+  autoplot(
+    electrical_serie |>
+      filter(Month >= yearmonth("2014 Jan"))
+  ) +
+  labs(
+    title = "Pronósticos baseline y ventas observadas",
+    x = "Mes",
+    y = "Ventas (millones de dólares australianos)"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+accuracy(pronosticos_prueba, prueba) |>
+  select(.model, RMSE, MAE)
+```
+
+```{r}
+modelo_baseline |>
+  select(snaive) |>
+  gg_tsresiduals()
+```
+
+```{r}
+modelo_baseline |>
+  select(drift) |>
+  gg_tsresiduals()
+```
 
 
 ## Pronóstico final
